@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Picture Time</title>
+<meta name="description" content="A locked, toddler-safe slideshow of photos on any topic.">
+<meta name="theme-color" content="#fff8ef">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pictures">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #fff8ef;
+    --ink: #2b2340;
+    --muted: #7a7090;
+    --accent: #ff7a59;
+    --accent-2: #4cb4ff;
+    --card: #ffffff;
+    --line: #eadfce;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--ink);
+    font-family: "Nunito", "Quicksand", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  input { -webkit-user-select: text; user-select: text; }
+  [hidden] { display: none !important; }
+
+  /* ---------- Parent / search screen ---------- */
+  #home {
+    min-height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(6vh + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  #home h1 { font-size: clamp(2rem, 6vw, 3.4rem); margin: 0 0 .2em; letter-spacing: -.02em; }
+  #home .sub { color: var(--muted); margin: 0 0 28px; font-size: 1.05rem; text-align: center; }
+  form.search { display: flex; gap: 10px; width: min(640px, 100%); }
+  form.search input {
+    flex: 1; min-width: 0;
+    font: inherit; font-size: 1.4rem; padding: 16px 20px;
+    border: 3px solid var(--line); border-radius: 18px; background: var(--card); color: var(--ink);
+    outline: none;
+  }
+  form.search input:focus { border-color: var(--accent-2); }
+  button { font: inherit; cursor: pointer; }
+  .go {
+    font-size: 1.3rem; font-weight: 800; padding: 0 26px;
+    border: 0; border-radius: 18px; background: var(--accent); color: #fff;
+  }
+  .go:disabled { opacity: .6; cursor: wait; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 26px 0 8px; max-width: 860px; }
+  .chip {
+    border: 2px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 999px; padding: 10px 16px; font-size: 1.1rem; font-weight: 700;
+  }
+  .chip:hover { border-color: var(--accent-2); }
+  .recent-label { color: var(--muted); font-size: .9rem; margin-top: 18px; }
+  #status { min-height: 1.6em; margin-top: 18px; color: var(--muted); font-weight: 700; text-align: center; }
+  #status.err { color: #c0392b; }
+  details.settings {
+    margin-top: 26px; width: min(640px, 100%);
+    background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 14px 18px;
+  }
+  details.settings summary { font-weight: 800; cursor: pointer; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; margin-top: 8px; }
+  .row small { display: block; color: var(--muted); }
+  .row select, .row input[type=checkbox] { font: inherit; transform-origin: right center; }
+  .row input[type=checkbox] { width: 22px; height: 22px; }
+  .tip { margin-top: 22px; max-width: 640px; color: var(--muted); font-size: .92rem; text-align: center; line-height: 1.5; }
+  .setup {
+    margin-top: 22px; width: min(640px, 100%);
+    background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 14px 18px;
+  }
+  .setup summary { font-weight: 800; cursor: pointer; }
+  .setup ol { margin: 10px 0 4px; padding-left: 1.3em; line-height: 1.55; }
+  .setup li { margin: 4px 0; }
+  .setup h3 { margin: 14px 0 0; font-size: 1rem; }
+  .setup .ok-badge { color: #2e9d5b; font-weight: 800; }
+  .install-btn { margin-top: 10px; border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 800; background: var(--accent-2); color: #fff; }
+  kbd { background: #f1e9dc; border-radius: 5px; padding: 1px 6px; font-size: .85em; }
+
+  /* ---------- Slideshow (locked) ---------- */
+  #show {
+    position: fixed; inset: 0; background: #111; overflow: hidden;
+    touch-action: none; cursor: none;
+    overscroll-behavior: none;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  }
+  #show * { -webkit-touch-callout: none; }
+  #show.cursor { cursor: default; }
+  .backdrop {
+    position: absolute; inset: -40px; background-size: cover; background-position: center;
+    filter: blur(40px) brightness(.55) saturate(1.2); transform: scale(1.1);
+    transition: opacity .6s ease;
+  }
+  .slide {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; opacity: 0; transition: opacity .6s ease;
+    pointer-events: none; -webkit-user-drag: none;
+  }
+  .slide.on { opacity: 1; animation: drift 14s ease-out forwards; }
+  @keyframes drift { from { transform: scale(1); } to { transform: scale(1.06); } }
+  @keyframes pop { 0% { transform: translateX(-50%) scale(.6); } 60% { transform: translateX(-50%) scale(1.12); } 100% { transform: translateX(-50%) scale(1); } }
+  #word {
+    position: absolute; left: 50%; bottom: calc(5vh + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: rgba(255,255,255,.92); color: #2b2340;
+    font-size: clamp(2rem, 7vw, 4.5rem); font-weight: 900; letter-spacing: .01em;
+    padding: .1em .7em; border-radius: 999px; box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    pointer-events: none; white-space: nowrap;
+  }
+  #word.pop { animation: pop .45s ease-out; }
+  #counter {
+    position: absolute; left: calc(16px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); color: rgba(255,255,255,.45);
+    font-size: .8rem; pointer-events: none;
+  }
+  /* Grown-up exit: must be pressed and held, so random toddler taps don't open it. */
+  #lockBtn {
+    position: absolute; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
+    width: 48px; height: 48px; padding: 0;
+    border-radius: 50%; border: 0; background: rgba(255,255,255,.12); color: rgba(255,255,255,.5);
+    font-size: 20px; display: grid; place-items: center; z-index: 5;
+    touch-action: none; --p: 0;
+  }
+  #lockBtn::before {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    background: conic-gradient(#fff calc(var(--p) * 1turn), transparent 0);
+    -webkit-mask: radial-gradient(circle, transparent 26px, #000 27px);
+            mask: radial-gradient(circle, transparent 26px, #000 27px);
+  }
+  #holdHint {
+    position: absolute; top: calc(66px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
+    background: rgba(0,0,0,.6); color: #fff; font-size: .85rem; font-weight: 700;
+    padding: 6px 10px; border-radius: 10px; pointer-events: none; z-index: 5;
+  }
+  #loadingMsg {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: #fff; font-size: 2rem; font-weight: 800; pointer-events: none;
+  }
+
+  /* overlay shown if fullscreen is lost: any tap re-enters */
+  #refocus {
+    position: absolute; inset: 0; z-index: 8; display: grid; place-items: center;
+    background: rgba(17,17,17,.75); color: #fff; text-align: center;
+  }
+  #refocus div { font-size: clamp(2rem, 8vw, 5rem); font-weight: 900; }
+  #refocus small { display: block; font-size: 1.2rem; opacity: .7; margin-top: 10px; font-weight: 600; }
+
+  /* grown-up gate */
+  #gate {
+    position: absolute; inset: 0; z-index: 10; display: grid; place-items: center;
+    background: rgba(0,0,0,.6); cursor: default;
+  }
+  .gate-card {
+    background: #fff; color: var(--ink); border-radius: 24px; padding: 22px; width: min(360px, calc(100% - 32px));
+    text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  .gate-card h2 { margin: 0 0 4px; font-size: 1.2rem; }
+  .gate-q { font-size: 2rem; font-weight: 900; margin: 6px 0; }
+  .gate-ans { font-size: 1.8rem; font-weight: 800; min-height: 1.4em; letter-spacing: .1em; border-bottom: 3px solid var(--line); margin: 0 30px 14px; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .keypad button { font-size: 1.5rem; font-weight: 800; padding: 12px 0; border: 0; border-radius: 14px; background: #f3ede4; color: var(--ink); }
+  .keypad .ok { background: var(--accent); color: #fff; }
+  .gate-actions { margin-top: 10px; display: flex; justify-content: center; }
+  .gate-actions button { background: none; border: 0; color: var(--muted); font-weight: 700; padding: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ================= Grown-up screen ================= -->
+<main id="home">
+  <h1>🖼️ Picture Time</h1>
+  <p class="sub">Type something to look at. The slideshow locks itself so little fingers can't wander off.</p>
+
+  <form class="search" id="searchForm" autocomplete="off">
+    <input id="q" type="search" placeholder="dogs, tigers, bees, fire trucks…" aria-label="What should we look at?" enterkeyhint="go">
+    <button class="go" id="goBtn" type="submit">Go!</button>
+  </form>
+
+  <div class="chips" id="chips"></div>
+  <div class="recent-label" id="recentLabel" hidden>Recent</div>
+  <div class="chips" id="recent" style="margin-top:6px"></div>
+
+  <div id="status" role="status"></div>
+
+  <details class="settings">
+    <summary>Settings</summary>
+    <div class="row">
+      <label for="speed">Change picture automatically<small>She can always tap to see the next one</small></label>
+      <select id="speed">
+        <option value="0">Only when tapped</option>
+        <option value="4">Every 4 seconds</option>
+        <option value="6">Every 6 seconds</option>
+        <option value="10">Every 10 seconds</option>
+        <option value="20">Every 20 seconds</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="speak">Say the word out loud<small>Uses the computer's voice on each new picture</small></label>
+      <input type="checkbox" id="speak">
+    </div>
+    <div class="row">
+      <label for="showWord">Show the word on screen</label>
+      <input type="checkbox" id="showWord">
+    </div>
+    <div class="row">
+      <label for="extraSource">Also search Openverse<small>More pictures; Wikimedia Commons is always used</small></label>
+      <input type="checkbox" id="extraSource">
+    </div>
+  </details>
+
+  <details class="setup" id="setup">
+    <summary>📱 Lock it down on a phone</summary>
+    <p id="installedNote" class="ok-badge" hidden>✓ Running as an installed app — no address bar or browser buttons.</p>
+    <button type="button" class="install-btn" id="installBtn" hidden>Install Picture Time</button>
+
+    <div data-os="ios">
+      <h3>iPhone / iPad</h3>
+      <ol>
+        <li>In Safari, tap <b>Share</b> → <b>Add to Home Screen</b>. Open Picture Time from the new icon — it runs without the address bar.</li>
+        <li>Turn on <b>Settings → Accessibility → Guided Access</b> and set a passcode.</li>
+        <li>Start a slideshow, then <b>triple-click the side (or Home) button</b> → <b>Start</b>. She can't leave the app or swipe home until you triple-click and enter the passcode.</li>
+      </ol>
+    </div>
+    <div data-os="android">
+      <h3>Android</h3>
+      <ol>
+        <li>In Chrome, tap <b>⋮ → Add to Home screen</b> (or <b>Install app</b>). Open Picture Time from the new icon — it runs full-screen.</li>
+        <li>Turn on <b>Settings → Security → App pinning</b> (search "pin" in Settings) and enable <b>Ask for PIN before unpinning</b>.</li>
+        <li>Open the Recent apps view, tap the Picture Time icon at the top of its card → <b>Pin</b>. She can't go home or switch apps until you unpin with your PIN.</li>
+      </ol>
+    </div>
+    <p class="tip" style="text-align:left;margin-top:8px">
+      The app blocks taps that leave the page, long-press menus, pinch zoom, pull-to-refresh and the Back gesture by itself.
+      The phone's own Home swipe can only be locked by Guided Access or App pinning.
+    </p>
+  </details>
+
+  <p class="tip">
+    While the slideshow runs, links and menus are switched off and Back does nothing.
+    To get out, <b>press and hold</b> the small 🔒 in the top-right corner, then answer the grown-up question.
+    On a computer, <kbd>./run.sh</kbd> opens it in Chrome kiosk mode.
+  </p>
+</main>
+
+<!-- ================= Locked slideshow ================= -->
+<section id="show" hidden>
+  <div class="backdrop" id="backdrop"></div>
+  <img class="slide" id="slideA" alt="" draggable="false">
+  <img class="slide" id="slideB" alt="" draggable="false">
+  <div id="loadingMsg">Finding pictures…</div>
+  <div id="word" hidden></div>
+  <div id="counter"></div>
+  <button id="lockBtn" aria-label="Grown-ups: press and hold to exit">🔒</button>
+  <div id="holdHint" hidden>Keep holding…</div>
+
+  <div id="refocus" hidden>
+    <div>👆 Tap!<small>to keep looking</small></div>
+  </div>
+
+  <div id="gate" hidden>
+    <div class="gate-card">
+      <h2>Grown-ups only</h2>
+      <div class="gate-q" id="gateQ"></div>
+      <div class="gate-ans" id="gateAns"></div>
+      <div class="keypad" id="keypad"></div>
+      <div class="gate-actions"><button id="gateCancel">Back to pictures</button></div>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------
+  // Settings & persistence (localStorage is a convenience only)
+  // ------------------------------------------------------------------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("pt:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem("pt:" + k, JSON.stringify(v)); } catch {} },
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    home: $("home"), show: $("show"), form: $("searchForm"), q: $("q"), go: $("goBtn"),
+    chips: $("chips"), recent: $("recent"), recentLabel: $("recentLabel"), status: $("status"),
+    speed: $("speed"), speak: $("speak"), showWord: $("showWord"), extraSource: $("extraSource"),
+    backdrop: $("backdrop"), a: $("slideA"), b: $("slideB"), word: $("word"), counter: $("counter"),
+    loading: $("loadingMsg"), lockBtn: $("lockBtn"), holdHint: $("holdHint"), refocus: $("refocus"),
+    gate: $("gate"), gateQ: $("gateQ"), gateAns: $("gateAns"), keypad: $("keypad"), gateCancel: $("gateCancel"),
+  };
+
+  els.speed.value = String(store.get("speed", 6));
+  els.speak.checked = store.get("speak", true);
+  els.showWord.checked = store.get("showWord", true);
+  els.extraSource.checked = store.get("extraSource", true);
+  els.speed.onchange = () => store.set("speed", +els.speed.value);
+  els.speak.onchange = () => store.set("speak", els.speak.checked);
+  els.showWord.onchange = () => store.set("showWord", els.showWord.checked);
+  els.extraSource.onchange = () => store.set("extraSource", els.extraSource.checked);
+
+  const SUGGESTIONS = [
+    ["🐶", "dogs"], ["🐱", "cats"], ["🐯", "tigers"], ["🐝", "bees"], ["🐘", "elephants"],
+    ["🦁", "lions"], ["🐴", "horses"], ["🦒", "giraffes"], ["🐧", "penguins"], ["🦋", "butterflies"],
+    ["🐠", "tropical fish"], ["🐻", "bears"], ["🦆", "ducks"], ["🐒", "monkeys"], ["🐄", "cows"],
+    ["🚒", "fire trucks"], ["🚂", "trains"], ["🚜", "tractors"], ["✈️", "airplanes"], ["🌸", "flowers"],
+  ];
+  function chip(label, term, parent) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = label;
+    b.onclick = () => { els.q.value = term; start(term); };
+    parent.appendChild(b);
+  }
+  SUGGESTIONS.forEach(([e, t]) => chip(`${e} ${t}`, t, els.chips));
+  function renderRecent() {
+    const r = store.get("recent", []);
+    els.recent.replaceChildren();
+    r.forEach((t) => chip(t, t, els.recent));
+    els.recentLabel.hidden = r.length === 0;
+  }
+  renderRecent();
+  function rememberSearch(t) {
+    const r = store.get("recent", []).filter((x) => x.toLowerCase() !== t.toLowerCase());
+    r.unshift(t); store.set("recent", r.slice(0, 10)); renderRecent();
+  }
+
+  // ------------------------------------------------------------------
+  // Image sources
+  // ------------------------------------------------------------------
+  // Skip things that are not nice pictures of the subject (maps, diagrams, specimens, scary stuff, adult stuff).
+  const BLOCK = /\b(map|maps|diagram|chart|graph|logo|icon|coat of arms|flag|stamp|coin|banknote|skeleton|skull|bones?|dead|death|carcass|roadkill|taxiderm\w*|specimen|museum specimen|dissect\w*|autopsy|blood|bloody|wound|injur\w*|kill|killed|hunt|hunting|hunter|trophy|slaughter\w*|butcher\w*|meat|corpse|attack|fight|war|weapon|gun|rifle|nude|naked|nsfw|sex|erotic\w*|porn|lingerie|bikini|topless|breast|genital\w*|penis|vagina|scan|page|book|text|document|newspaper|poster|manuscript|letter|signature|screenshot|svg|x-?ray|microscop\w*|sem image|anatomy)\b/i;
+
+  const THUMB_WIDTH = (window.screen.width * (window.devicePixelRatio || 1)) > 1400 ? 1920 : 1280;
+
+  function withTimeout(ms) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), ms);
+    return { signal: c.signal, done: () => clearTimeout(t) };
+  }
+
+  async function fetchCommons(term, offset) {
+    const p = new URLSearchParams({
+      action: "query", format: "json", origin: "*",
+      generator: "search", gsrnamespace: "6", gsrlimit: "50", gsroffset: String(offset),
+      gsrsearch: `${term} filetype:bitmap`,
+      prop: "imageinfo", iiprop: "url|mime|size", iiurlwidth: String(THUMB_WIDTH),
+    });
+    const t = withTimeout(15000);
+    try {
+      const r = await fetch("https://commons.wikimedia.org/w/api.php?" + p, { signal: t.signal });
+      const d = await r.json();
+      const pages = Object.values(d?.query?.pages || {}).sort((x, y) => (x.index || 0) - (y.index || 0));
+      const out = [];
+      for (const pg of pages) {
+        const ii = pg.imageinfo?.[0];
+        if (!ii || !ii.thumburl) continue;
+        if (!/^image\/(jpeg|png|webp)$/.test(ii.mime)) continue;
+        if (ii.width < 500 || ii.height < 400) continue;
+        const ratio = ii.width / ii.height;
+        if (ratio > 2.6 || ratio < 0.45) continue;
+        const title = (pg.title || "").replace(/^File:/, "").replace(/[_\-.]/g, " ");
+        if (BLOCK.test(title)) continue;
+        out.push({ src: ii.thumburl, key: ii.url });
+      }
+      return { items: out, more: !!d.continue };
+    } catch { return { items: [], more: false }; }
+    finally { t.done(); }
+  }
+
+  async function fetchOpenverse(term, page) {
+    const p = new URLSearchParams({ q: term, page: String(page), page_size: "20", mature: "false", category: "photograph" });
+    const t = withTimeout(12000);
+    try {
+      const r = await fetch("https://api.openverse.org/v1/images/?" + p, { signal: t.signal });
+      if (!r.ok) return { items: [], more: false };
+      const d = await r.json();
+      const out = [];
+      for (const it of d.results || []) {
+        if (it.mature) continue;
+        const text = [it.title, ...(it.tags || []).map((x) => x.name)].join(" ");
+        if (BLOCK.test(text)) continue;
+        if (it.width && it.height) {
+          if (it.width < 500) continue;
+          const ratio = it.width / it.height;
+          if (ratio > 2.6 || ratio < 0.45) continue;
+        }
+        out.push({ src: it.url, fallback: it.thumbnail, key: it.url });
+      }
+      return { items: out, more: page < (d.page_count || 1) };
+    } catch { return { items: [], more: false }; }
+    finally { t.done(); }
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  // ------------------------------------------------------------------
+  // Slideshow state
+  // ------------------------------------------------------------------
+  const S = {
+    term: "", session: 0,
+    pending: [],        // candidates not yet loaded
+    seen: new Set(),    // dedupe keys
+    ready: [],          // successfully loaded image URLs, in display order
+    idx: -1,
+    loadingCount: 0,
+    commonsOffset: 0, commonsMore: true,
+    ovPage: 1, ovMore: true,
+    fetching: false,
+    timer: 0,
+    front: null,
+  };
+  const MAX_PARALLEL = 4;
+  const AHEAD = 6;       // keep this many loaded pictures ahead of the current one
+  const MAX_TOTAL = 400; // stop fetching more after this many
+
+  function addCandidates(items) {
+    const fresh = [];
+    for (const it of items) { if (!S.seen.has(it.key)) { S.seen.add(it.key); fresh.push(it); } }
+    S.pending.push(...shuffle(fresh));
+  }
+
+  async function fetchMore() {
+    if (S.fetching) return;
+    if (S.seen.size >= MAX_TOTAL) return;
+    const useOv = els.extraSource.checked && S.ovMore;
+    if (!S.commonsMore && !useOv) return;
+    S.fetching = true;
+    const session = S.session;
+    const jobs = [];
+    if (S.commonsMore) {
+      jobs.push(fetchCommons(S.term, S.commonsOffset).then((r) => {
+        if (session !== S.session) return;
+        S.commonsOffset += 50; S.commonsMore = r.more && S.commonsOffset < 500;
+        addCandidates(r.items);
+        pump();
+      }));
+    }
+    if (useOv) {
+      jobs.push(fetchOpenverse(S.term, S.ovPage).then((r) => {
+        if (session !== S.session) return;
+        S.ovPage += 1; S.ovMore = r.more && S.ovPage <= 8;
+        addCandidates(r.items);
+        pump();
+      }));
+    }
+    await Promise.all(jobs);
+    if (session === S.session) {
+      S.fetching = false;
+      pump();
+      checkEmpty();
+    }
+  }
+
+  // Load candidate images in the background so the next tap is instant.
+  function pump() {
+    const ahead = S.ready.length - 1 - S.idx;
+    while (S.loadingCount < MAX_PARALLEL && S.pending.length && ahead + S.loadingCount < AHEAD) {
+      loadOne(S.pending.shift());
+    }
+    if (S.pending.length < 10) fetchMore();
+  }
+
+  function loadOne(item) {
+    const session = S.session;
+    S.loadingCount++;
+    const img = new Image();
+    img.referrerPolicy = "no-referrer";
+    let triedFallback = false;
+    const finish = (ok) => {
+      if (session !== S.session) return;
+      S.loadingCount--;
+      if (ok) {
+        S.ready.push(img.src);
+        if (S.idx === -1) next(true);
+        updateCounter();
+      }
+      pump();
+    };
+    const t = setTimeout(() => { img.src = ""; finish(false); }, 20000);
+    img.onload = () => {
+      clearTimeout(t);
+      if (img.naturalWidth < 300) return finish(false);
+      (img.decode ? img.decode().catch(() => {}) : Promise.resolve()).then(() => finish(true));
+    };
+    img.onerror = () => {
+      if (!triedFallback && item.fallback) { triedFallback = true; img.src = item.fallback; return; }
+      clearTimeout(t); finish(false);
+    };
+    img.src = item.src;
+  }
+
+  function checkEmpty() {
+    if (S.idx === -1 && S.ready.length === 0 && S.loadingCount === 0 && S.pending.length === 0 && !S.fetching) {
+      els.loading.textContent = "No pictures found 😕";
+    }
+  }
+
+  function updateCounter() {
+    els.counter.textContent = S.ready.length ? `${S.idx + 1} / ${S.ready.length}${S.pending.length || S.commonsMore ? "+" : ""}` : "";
+  }
+
+  function show(i, isFirst) {
+    if (i < 0 || i >= S.ready.length) return;
+    S.idx = i;
+    const src = S.ready[i];
+    const back = S.front === els.a ? els.b : els.a;
+    back.src = src;
+    back.classList.remove("on"); void back.offsetWidth; back.classList.add("on");
+    if (S.front) S.front.classList.remove("on");
+    S.front = back;
+    els.backdrop.style.backgroundImage = `url("${src.replace(/"/g, "%22")}")`;
+    els.loading.hidden = true;
+    if (els.showWord.checked) {
+      els.word.hidden = false;
+      els.word.classList.remove("pop"); void els.word.offsetWidth; els.word.classList.add("pop");
+    }
+    if (els.speak.checked && Date.now() - lastSpoken > 1500) say(S.term);
+    updateCounter();
+    resetTimer();
+    pump();
+  }
+
+  function next() {
+    if (S.idx + 1 < S.ready.length) show(S.idx + 1);
+    else if (S.ready.length > 1 && !S.pending.length && !S.commonsMore && S.loadingCount === 0) show(0); // loop around
+    else pump();
+  }
+  function prev() { if (S.idx > 0) show(S.idx - 1); }
+
+  function resetTimer() {
+    clearTimeout(S.timer);
+    const secs = +els.speed.value;
+    if (secs > 0) S.timer = setTimeout(next, secs * 1000);
+  }
+
+  let lastSpoken = 0;
+  function say(text) {
+    try {
+      if (!("speechSynthesis" in window)) return;
+      lastSpoken = Date.now();
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.85; u.pitch = 1.15;
+      speechSynthesis.speak(u);
+    } catch {}
+  }
+
+  function titleCase(s) { return s.replace(/\b\w/g, (c) => c.toUpperCase()); }
+
+  // ------------------------------------------------------------------
+  // Start / stop
+  // ------------------------------------------------------------------
+  els.form.addEventListener("submit", (e) => { e.preventDefault(); start(els.q.value); });
+
+  function start(raw) {
+    const term = (raw || "").trim().replace(/\s+/g, " ");
+    if (!term) { els.q.focus(); return; }
+    rememberSearch(term);
+
+    S.session++;
+    Object.assign(S, {
+      term, pending: [], seen: new Set(), ready: [], idx: -1, loadingCount: 0,
+      commonsOffset: 0, commonsMore: true, ovPage: 1, ovMore: true, fetching: false, front: null,
+    });
+    clearTimeout(S.timer);
+    els.a.className = "slide"; els.b.className = "slide"; els.a.removeAttribute("src"); els.b.removeAttribute("src");
+    els.backdrop.style.backgroundImage = "";
+    els.word.textContent = titleCase(term);
+    els.word.hidden = true;
+    els.loading.textContent = "Finding pictures…";
+    els.loading.hidden = false;
+    els.counter.textContent = "";
+
+    lock();          // must run inside the click/submit gesture so full-screen is allowed
+    if (els.speak.checked) say(term);   // speaking during the tap also unlocks speech on iPhone
+    fetchMore();
+  }
+
+  // ------------------------------------------------------------------
+  // Lockdown: keep a toddler inside the slideshow
+  // ------------------------------------------------------------------
+  let locked = false;
+  let wakeLock = null;
+
+  // Fullscreen with WebKit prefixes (iPad Safari). iPhone Safari has no page fullscreen at all;
+  // there the installed home-screen app provides the "no browser chrome" part.
+  const de = document.documentElement;
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  const fsSupported = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  const isStandalone = () =>
+    matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches || navigator.standalone === true;
+  const inFullscreen = () => !fsSupported || !!fsEl();
+
+  function lock() {
+    locked = true;
+    els.home.hidden = true;
+    els.show.hidden = false;
+    document.activeElement?.blur?.();
+    enterFullscreen();
+    trapHistory();
+    requestWakeLock();
+  }
+
+  function unlock() {
+    locked = false;
+    S.session++;               // stop all background loading for this run
+    clearTimeout(S.timer);
+    try { speechSynthesis.cancel(); } catch {}
+    els.gate.hidden = true; els.refocus.hidden = true;
+    els.show.hidden = true; els.home.hidden = false;
+    try { navigator.keyboard?.unlock?.(); } catch {}
+    if (fsEl()) {
+      try { (document.exitFullscreen || document.webkitExitFullscreen).call(document)?.catch?.(() => {}); } catch {}
+    }
+    try { wakeLock?.release(); } catch {} wakeLock = null;
+    els.status.textContent = "";
+  }
+
+  async function enterFullscreen() {
+    if (!fsSupported) return;
+    try {
+      if (!fsEl()) {
+        if (de.requestFullscreen) await de.requestFullscreen({ navigationUI: "hide" });
+        else await de.webkitRequestFullscreen?.();
+      }
+      // Chrome/Edge: capture Escape, Ctrl+W, Ctrl+T, Alt+Left, etc. while full-screen.
+      // (Escape then has to be held down to leave full-screen.)
+      if (navigator.keyboard?.lock) await navigator.keyboard.lock();
+      els.refocus.hidden = true;
+    } catch {
+      // Full-screen refused (no user gesture, or unsupported) — the refocus overlay will ask for a tap.
+    }
+  }
+
+  function onFullscreenChange() {
+    if (!locked) return;
+    if (!fsEl()) {
+      els.refocus.hidden = false;   // next tap anywhere goes straight back to full-screen
+      clearTimeout(S.timer);
+    } else {
+      els.refocus.hidden = true;
+      resetTimer();
+    }
+  }
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+
+  async function requestWakeLock() {
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (locked && document.visibilityState === "visible") requestWakeLock();
+  });
+
+  // Back button / Android back gesture / iOS edge-swipe: keep a cushion of history entries.
+  // Chrome on Android skips entries that weren't added during a tap, so the cushion is topped up
+  // on every tap (see topUpHistory in the pointer handler), not just when Back is pressed.
+  let histCushion = 0;
+  function pushTrap() { history.pushState({ pt: true }, "", location.href); histCushion++; }
+  function trapHistory() { for (let i = 0; i < 3; i++) pushTrap(); }
+  function topUpHistory() { if (locked && histCushion < 12) pushTrap(); }
+  window.addEventListener("popstate", () => {
+    if (!locked) return;
+    histCushion = Math.max(0, histCushion - 1);
+    pushTrap();
+  });
+
+  // Closing the tab / reloading asks for confirmation while locked.
+  window.addEventListener("beforeunload", (e) => {
+    if (!locked) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+
+  // No right-click menus, dragging pictures out, text selection, pinch / ctrl-wheel zoom.
+  ["contextmenu", "dragstart", "selectstart", "gesturestart", "gesturechange", "drop", "dragover"].forEach((ev) =>
+    document.addEventListener(ev, (e) => { if (locked) e.preventDefault(); }, { capture: true })
+  );
+  document.addEventListener("wheel", (e) => { if (locked) e.preventDefault(); }, { passive: false, capture: true });
+  // Phones: stop scrolling, pull-to-refresh, rubber-banding, pinch and double-tap zoom.
+  document.addEventListener("touchmove", (e) => { if (locked) e.preventDefault(); }, { passive: false });
+  document.addEventListener("touchstart", (e) => { if (locked && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
+    if (!locked || e.target.closest("#gate")) return;
+    const now = Date.now();
+    if (now - lastTouchEnd < 350) e.preventDefault();   // double-tap zoom (older iOS)
+    lastTouchEnd = now;
+  }, { passive: false });
+  // Middle-click and back/forward mouse buttons.
+  ["auxclick", "mouseup", "mousedown"].forEach((ev) =>
+    document.addEventListener(ev, (e) => { if (locked && e.button !== 0) e.preventDefault(); }, { capture: true })
+  );
+
+  // Keyboard: swallow everything except a few slideshow keys.
+  document.addEventListener("keydown", (e) => {
+    if (!locked) return;
+    if (!els.gate.hidden) {
+      if (/^[0-9]$/.test(e.key)) gateInput(e.key);
+      else if (e.key === "Backspace") gateInput("del");
+      else if (e.key === "Enter") gateInput("ok");
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    topUpHistory();
+    if (!inFullscreen()) {
+      enterFullscreen();
+      if (!els.refocus.hidden) return;
+    }
+    if (e.repeat) return;
+    if (e.key === "ArrowLeft") prev();
+    else if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") next();
+    else if (e.key.length === 1 || e.key.startsWith("Arrow")) next(); // keyboard mashing = more pictures
+  }, { capture: true });
+  document.addEventListener("keyup", (e) => { if (locked) { e.preventDefault(); e.stopPropagation(); } }, { capture: true });
+
+  // ------------------------------------------------------------------
+  // Touch / click on the slideshow
+  // ------------------------------------------------------------------
+  let down = null;
+  els.show.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#gate") || e.target === els.lockBtn) return;
+    down = { x: e.clientX, y: e.clientY, t: Date.now() };
+  });
+  els.show.addEventListener("pointercancel", () => { down = null; });
+  els.show.addEventListener("pointerup", (e) => {
+    if (!down || e.target.closest("#gate") || e.target === els.lockBtn) { down = null; return; }
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    down = null;
+    topUpHistory();
+    if (!inFullscreen()) {
+      enterFullscreen();
+      if (!els.refocus.hidden) return;   // this tap was just to get back into full-screen
+    }
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) { dx > 0 ? prev() : next(); return; }
+    next();
+  });
+
+  // Show the cursor briefly when the mouse moves (so a grown-up can find the lock).
+  let cursorT = 0;
+  els.show.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    els.show.classList.add("cursor");
+    clearTimeout(cursorT);
+    cursorT = setTimeout(() => els.show.classList.remove("cursor"), 1500);
+  });
+
+  // ------------------------------------------------------------------
+  // Grown-up gate (an arithmetic question a toddler can't answer)
+  // ------------------------------------------------------------------
+  let gateAnswer = "", gateTyped = "", gateIdle = 0;
+  ["1","2","3","4","5","6","7","8","9","del","0","ok"].forEach((k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = k === "del" ? "⌫" : k === "ok" ? "OK" : k;
+    if (k === "ok") b.className = "ok";
+    b.onclick = (e) => { e.stopPropagation(); gateInput(k); };
+    els.keypad.appendChild(b);
+  });
+
+  // Press and hold the lock for 1.5 s to open the grown-up question.
+  const HOLD_MS = 1500;
+  let holdStart = 0, holdRaf = 0;
+  function holdTick() {
+    const p = Math.min(1, (performance.now() - holdStart) / HOLD_MS);
+    els.lockBtn.style.setProperty("--p", p);
+    if (p >= 1) { endHold(); openGate(); return; }
+    holdRaf = requestAnimationFrame(holdTick);
+  }
+  function endHold() {
+    cancelAnimationFrame(holdRaf); holdRaf = 0;
+    els.lockBtn.style.setProperty("--p", 0);
+    els.holdHint.hidden = true;
+  }
+  els.lockBtn.addEventListener("pointerdown", (e) => {
+    e.stopPropagation(); e.preventDefault();
+    try { els.lockBtn.setPointerCapture(e.pointerId); } catch {}
+    holdStart = performance.now();
+    els.holdHint.hidden = false;
+    holdRaf = requestAnimationFrame(holdTick);
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach((ev) =>
+    els.lockBtn.addEventListener(ev, (e) => { e.stopPropagation(); if (holdRaf) endHold(); })
+  );
+  els.lockBtn.addEventListener("click", (e) => e.stopPropagation());
+  els.gateCancel.addEventListener("click", (e) => { e.stopPropagation(); closeGate(); });
+  els.gate.addEventListener("pointerup", (e) => e.stopPropagation());
+
+  function openGate() {
+    const a = 11 + Math.floor(Math.random() * 30), b = 6 + Math.floor(Math.random() * 20);
+    gateAnswer = String(a + b);
+    gateTyped = "";
+    els.gateQ.textContent = `${a} + ${b} = ?`;
+    els.gateAns.textContent = "";
+    els.gate.hidden = false;
+    clearTimeout(S.timer);
+    bumpGateIdle();
+  }
+  function closeGate() {
+    els.gate.hidden = true;
+    clearTimeout(gateIdle);
+    resetTimer();
+  }
+  function bumpGateIdle() {
+    clearTimeout(gateIdle);
+    gateIdle = setTimeout(closeGate, 12000);   // a toddler poking the lock gets bounced back quickly
+  }
+  function gateInput(k) {
+    bumpGateIdle();
+    if (k === "del") gateTyped = gateTyped.slice(0, -1);
+    else if (k === "ok") {
+      if (gateTyped === gateAnswer) { clearTimeout(gateIdle); unlock(); return; }
+      closeGate(); return;
+    } else if (gateTyped.length < 3) gateTyped += k;
+    els.gateAns.textContent = gateTyped;
+  }
+  // ------------------------------------------------------------------
+  // Phone setup help, install prompt, offline shell
+  // ------------------------------------------------------------------
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua);
+  if (isIOS || isAndroid) {
+    document.querySelectorAll("#setup [data-os]").forEach((el) => { el.hidden = el.dataset.os !== (isIOS ? "ios" : "android"); });
+    if (!isStandalone()) $("setup").open = true;
+  }
+  if (isStandalone()) $("installedNote").hidden = false;
+
+  let installEvt = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault(); installEvt = e; $("installBtn").hidden = false;
+  });
+  $("installBtn").addEventListener("click", async () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    await installEvt.userChoice.catch(() => {});
+    installEvt = null; $("installBtn").hidden = true;
+  });
+
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
