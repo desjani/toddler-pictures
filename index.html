@@ -12,10 +12,14 @@
 <meta name="apple-mobile-web-app-title" content="Pictures">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
+<script>
+  try { const t = JSON.parse(localStorage.getItem("pt:theme")); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>
 <link rel="icon" type="image/png" href="icons/favicon.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
   :root {
+    color-scheme: light;
     --bg: #fff8ef;
     --ink: #2b2340;
     --muted: #7a7090;
@@ -23,6 +27,38 @@
     --accent-2: #4cb4ff;
     --card: #ffffff;
     --line: #eadfce;
+    --soft: #f3ede4;
+    --good: #2e9d5b;
+    --bad: #c0392b;
+  }
+  /* Dark theme: follows the phone's setting unless Light/Dark is chosen in Settings. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #16131d;
+      --ink: #efe9f8;
+      --muted: #a69dbb;
+      --accent: #ff7a59;
+      --accent-2: #3d9be0;
+      --card: #221e2b;
+      --line: #393244;
+      --soft: #2f2a3a;
+      --good: #5fd08a;
+      --bad: #ff7b6b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #16131d;
+    --ink: #efe9f8;
+    --muted: #a69dbb;
+    --accent: #ff7a59;
+    --accent-2: #3d9be0;
+    --card: #221e2b;
+    --line: #393244;
+    --soft: #2f2a3a;
+    --good: #5fd08a;
+    --bad: #ff7b6b;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -68,7 +104,7 @@
   .chip:hover { border-color: var(--accent-2); }
   .recent-label { color: var(--muted); font-size: .9rem; margin-top: 18px; }
   #status { min-height: 1.6em; margin-top: 18px; color: var(--muted); font-weight: 700; text-align: center; }
-  #status.err { color: #c0392b; }
+  #status.err { color: var(--bad); }
   details.settings {
     margin-top: 26px; width: min(640px, 100%);
     background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 14px 18px;
@@ -89,9 +125,9 @@
   .setup ol { margin: 10px 0 4px; padding-left: 1.3em; line-height: 1.55; }
   .setup li { margin: 4px 0; }
   .setup h3 { margin: 14px 0 0; font-size: 1rem; }
-  .setup .ok-badge { color: #2e9d5b; font-weight: 800; }
+  .setup .ok-badge { color: var(--good); font-weight: 800; }
   .install-btn { margin-top: 10px; border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 800; background: var(--accent-2); color: #fff; }
-  kbd { background: #f1e9dc; border-radius: 5px; padding: 1px 6px; font-size: .85em; }
+  kbd { background: var(--soft); border-radius: 5px; padding: 1px 6px; font-size: .85em; }
 
   /* ---------- Slideshow (locked) ---------- */
   #show {
@@ -179,14 +215,14 @@
     background: rgba(0,0,0,.6); cursor: default;
   }
   .gate-card {
-    background: #fff; color: var(--ink); border-radius: 24px; padding: 22px; width: min(360px, calc(100% - 32px));
+    background: var(--card); color: var(--ink); border-radius: 24px; padding: 22px; width: min(360px, calc(100% - 32px));
     text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.4);
   }
   .gate-card h2 { margin: 0 0 4px; font-size: 1.2rem; }
   .gate-q { font-size: 2rem; font-weight: 900; margin: 6px 0; }
   .gate-ans { font-size: 1.8rem; font-weight: 800; min-height: 1.4em; letter-spacing: .1em; border-bottom: 3px solid var(--line); margin: 0 30px 14px; }
   .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .keypad button { font-size: 1.5rem; font-weight: 800; padding: 12px 0; border: 0; border-radius: 14px; background: #f3ede4; color: var(--ink); }
+  .keypad button { font-size: 1.5rem; font-weight: 800; padding: 12px 0; border: 0; border-radius: 14px; background: var(--soft); color: var(--ink); }
   .keypad .ok { background: var(--accent); color: #fff; }
   .gate-actions { margin-top: 10px; display: flex; justify-content: center; }
   .gate-actions button { background: none; border: 0; color: var(--muted); font-weight: 700; padding: 8px; }
@@ -240,6 +276,14 @@
     <div class="row">
       <label for="showWord">Show the word<small>A small label in the top-left corner</small></label>
       <input type="checkbox" id="showWord">
+    </div>
+    <div class="row">
+      <label for="theme">Theme<small>Auto follows the phone's dark mode setting</small></label>
+      <select id="theme">
+        <option value="auto">Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
     </div>
     <div class="row">
       <label for="extraSource">Also search Openverse<small>More pictures; Wikimedia Commons is always used</small></label>
@@ -328,15 +372,15 @@
     home: $("home"), show: $("show"), form: $("searchForm"), q: $("q"), go: $("goBtn"),
     chips: $("chips"), recent: $("recent"), recentLabel: $("recentLabel"), status: $("status"),
     speed: $("speed"), navControls: $("navControls"), lockout: $("lockout"), showWord: $("showWord"), extraSource: $("extraSource"),
-    zoneHint: $("zoneHint"),
+    zoneHint: $("zoneHint"), theme: $("theme"),
     backdrop: $("backdrop"), a: $("slideA"), b: $("slideB"), word: $("word"), counter: $("counter"),
     loading: $("loadingMsg"), lockBtn: $("lockBtn"), holdHint: $("holdHint"), refocus: $("refocus"),
     gate: $("gate"), gateQ: $("gateQ"), gateAns: $("gateAns"), keypad: $("keypad"), gateCancel: $("gateCancel"),
   };
 
-  els.speed.value = String(store.get("speed", 6));
+  els.speed.value = String(store.get("speed", 0));
   els.navControls.checked = store.get("navControls", true);
-  els.lockout.value = String(store.get("lockout", 0));
+  els.lockout.value = String(store.get("lockout", 1));
   els.showWord.checked = store.get("showWord", true);
   els.extraSource.checked = store.get("extraSource", true);
   els.speed.onchange = () => store.set("speed", +els.speed.value);
@@ -344,6 +388,20 @@
   els.lockout.onchange = () => store.set("lockout", +els.lockout.value);
   els.showWord.onchange = () => store.set("showWord", els.showWord.checked);
   els.extraSource.onchange = () => store.set("extraSource", els.extraSource.checked);
+
+  // Theme: "auto" follows the system; light/dark override it. Also tints the phone's status bar.
+  const darkQuery = matchMedia("(prefers-color-scheme: dark)");
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  function applyTheme() {
+    const t = els.theme.value;
+    if (t === "auto") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+    const dark = t === "dark" || (t === "auto" && darkQuery.matches);
+    themeMeta.content = locked ? "#111111" : dark ? "#16131d" : "#fff8ef";
+  }
+  els.theme.value = store.get("theme", "auto");
+  els.theme.onchange = () => { store.set("theme", els.theme.value); applyTheme(); };
+  darkQuery.addEventListener?.("change", applyTheme);
 
   const SUGGESTIONS = [
     ["🐶", "dogs"], ["🐱", "cats"], ["🐯", "tigers"], ["🐝", "bees"], ["🐘", "elephants"],
@@ -632,6 +690,7 @@
   // ------------------------------------------------------------------
   let locked = false;
   let wakeLock = null;
+  applyTheme();
 
   // Fullscreen with WebKit prefixes (iPad Safari). iPhone Safari has no page fullscreen at all;
   // there the installed home-screen app provides the "no browser chrome" part.
@@ -644,6 +703,7 @@
 
   function lock() {
     locked = true;
+    applyTheme();
     els.home.hidden = true;
     els.show.hidden = false;
     document.activeElement?.blur?.();
@@ -654,6 +714,7 @@
 
   function unlock() {
     locked = false;
+    applyTheme();
     S.session++;               // stop all background loading for this run
     clearTimeout(S.timer);
     els.gate.hidden = true; els.refocus.hidden = true;

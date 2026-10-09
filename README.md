@@ -52,7 +52,10 @@ You can also just open `index.html` in any browser, but you get fewer protection
      race through pictures. Automatic changes aren't affected.
 3. **To exit:** **press and hold** the faint 🔒 in the top-right corner for about 1.5 seconds, then answer the
    addition question on the keypad. Quick taps on the lock are ignored. A wrong answer, or 12 seconds without input, sends it back to the pictures.
-4. To close the kiosk window completely: exit the slideshow first, then press **Alt+F4**.
+4. **Settings** are saved on the device and remembered next time. Defaults: change pictures only
+   when tapped, left-side back zone on, 1-second wait between taps, word label on, Openverse on,
+   theme Auto (follows the phone's dark mode; can be forced to Light or Dark).
+5. To close the kiosk window completely: exit the slideshow first, then press **Alt+F4**.
 
 ## What the lock does
 
