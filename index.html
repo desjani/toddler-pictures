@@ -122,20 +122,21 @@
     padding: 7px 12px; border-radius: 999px;
     pointer-events: none; white-space: nowrap; z-index: 4;
   }
-  /* Back / next buttons on the left and right edges */
-  .nav {
-    position: absolute; top: 50%; transform: translateY(-50%); z-index: 4;
-    width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%;
-    background: rgba(255,255,255,.22); color: #fff;
-    display: grid; place-items: center; touch-action: none;
-    transition: opacity .25s ease, background .15s ease;
+  /* Brief overlay when a slideshow starts, showing the tap zones:
+     left quarter = back, the rest = next. */
+  #zoneHint {
+    position: absolute; inset: 0; z-index: 6; display: flex;
+    opacity: 1; transition: opacity .3s ease;
   }
-  .nav svg { width: 30px; height: 30px; pointer-events: none; }
-  .nav:active { background: rgba(255,255,255,.4); }
-  #prevBtn { left: calc(12px + env(safe-area-inset-left)); }
-  #nextBtn { right: calc(12px + env(safe-area-inset-right)); }
-  .nav.off { opacity: .25; }           /* nothing to go back to */
-  #show.cooling .nav { opacity: .25; } /* tap lockout in effect */
+  #zoneHint.fade { opacity: 0; }
+  #zoneHint > div {
+    display: grid; place-items: center; align-content: center; gap: 6px;
+    color: #fff; font-weight: 900; text-shadow: 0 2px 8px rgba(0,0,0,.5);
+  }
+  #zoneHint .zb { width: 25%; background: rgba(76,180,255,.45); border-right: 3px dashed rgba(255,255,255,.8); }
+  #zoneHint .zn { flex: 1; background: rgba(255,122,89,.35); }
+  #zoneHint .arrow { font-size: clamp(3rem, 12vw, 6rem); line-height: 1; }
+  #zoneHint .lbl { font-size: clamp(1rem, 3.5vw, 1.6rem); }
   #counter {
     position: absolute; left: calc(16px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); color: rgba(255,255,255,.45);
     font-size: .8rem; pointer-events: none;
@@ -222,7 +223,7 @@
       </select>
     </div>
     <div class="row">
-      <label for="navControls">Back &amp; next buttons<small>Arrow buttons on the sides, and swipe left/right. Tapping the picture always shows the next one.</small></label>
+      <label for="navControls">Tap left side to go back<small>Tapping the left quarter of the screen (or swiping right) goes back. The rest of the screen goes forward. When off, any tap goes forward.</small></label>
       <input type="checkbox" id="navControls">
     </div>
     <div class="row">
@@ -287,8 +288,10 @@
   <img class="slide" id="slideB" alt="" draggable="false">
   <div id="loadingMsg">Finding pictures…</div>
   <div id="word" hidden></div>
-  <button class="nav" id="prevBtn" aria-label="Previous picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-  <button class="nav" id="nextBtn" aria-label="Next picture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  <div id="zoneHint" hidden>
+    <div class="zb"><span class="arrow">‹</span><span class="lbl">Back</span></div>
+    <div class="zn"><span class="arrow">›</span><span class="lbl">Next</span></div>
+  </div>
   <div id="counter"></div>
   <button id="lockBtn" aria-label="Grown-ups: press and hold to exit">🔒</button>
   <div id="holdHint" hidden>Keep holding…</div>
@@ -325,7 +328,7 @@
     home: $("home"), show: $("show"), form: $("searchForm"), q: $("q"), go: $("goBtn"),
     chips: $("chips"), recent: $("recent"), recentLabel: $("recentLabel"), status: $("status"),
     speed: $("speed"), navControls: $("navControls"), lockout: $("lockout"), showWord: $("showWord"), extraSource: $("extraSource"),
-    prevBtn: $("prevBtn"), nextBtn: $("nextBtn"),
+    zoneHint: $("zoneHint"),
     backdrop: $("backdrop"), a: $("slideA"), b: $("slideB"), word: $("word"), counter: $("counter"),
     loading: $("loadingMsg"), lockBtn: $("lockBtn"), holdHint: $("holdHint"), refocus: $("refocus"),
     gate: $("gate"), gateQ: $("gateQ"), gateAns: $("gateAns"), keypad: $("keypad"), gateCancel: $("gateCancel"),
@@ -526,7 +529,9 @@
     img.onload = () => {
       clearTimeout(t);
       if (img.naturalWidth < 300) return finish(false);
-      (img.decode ? img.decode().catch(() => {}) : Promise.resolve()).then(() => finish(true));
+      // Pre-decode for a smooth swap, but never wait on it for long (decoding can stall in a background tab).
+      const decoded = img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+      Promise.race([decoded, new Promise((r) => setTimeout(r, 1500))]).then(() => finish(true));
     };
     img.onerror = () => {
       if (!triedFallback && item.fallback) { triedFallback = true; img.src = item.fallback; return; }
@@ -557,7 +562,7 @@
     els.backdrop.style.backgroundImage = `url("${src.replace(/"/g, "%22")}")`;
     els.loading.hidden = true;
     els.word.hidden = !els.showWord.checked;
-    els.prevBtn.classList.toggle("off", i === 0);
+    if (!S.hinted) { S.hinted = true; if (els.navControls.checked) flashZoneHint(); }
     updateCounter();
     resetTimer();
     pump();
@@ -578,7 +583,7 @@
 
   // Taps, buttons, swipes and keys all go through here so the "wait between taps" setting applies to each.
   // (Automatic advancing is not affected, so she can always go back to a picture that just changed.)
-  let lockoutUntil = 0, lockoutT = 0;
+  let lockoutUntil = 0;
   function userGo(dir) {
     if (Date.now() < lockoutUntil) return;
     const before = S.idx;
@@ -586,9 +591,6 @@
     const secs = +els.lockout.value;
     if (secs > 0 && S.idx !== before) {
       lockoutUntil = Date.now() + secs * 1000;
-      els.show.classList.add("cooling");
-      clearTimeout(lockoutT);
-      lockoutT = setTimeout(() => els.show.classList.remove("cooling"), secs * 1000);
     }
   }
 
@@ -618,9 +620,8 @@
     els.loading.hidden = false;
     els.counter.textContent = "";
 
-    els.prevBtn.hidden = els.nextBtn.hidden = !els.navControls.checked;
-    els.prevBtn.classList.add("off");
-    lockoutUntil = 0; els.show.classList.remove("cooling");
+    S.hinted = false; hideZoneHint();
+    lockoutUntil = 0;
 
     lock();          // must run inside the click/submit gesture so full-screen is allowed
     fetchMore();
@@ -777,8 +778,23 @@
     return true;
   }
 
+  // Tap-zone hint: shown for half a second when the first picture appears; a tap dismisses it early.
+  let hintT = 0;
+  function flashZoneHint() {
+    els.zoneHint.classList.remove("fade");
+    els.zoneHint.hidden = false;
+    clearTimeout(hintT);
+    hintT = setTimeout(hideZoneHint, 500);
+  }
+  function hideZoneHint() {
+    clearTimeout(hintT);
+    if (els.zoneHint.hidden) return;
+    els.zoneHint.classList.add("fade");
+    hintT = setTimeout(() => { els.zoneHint.hidden = true; els.zoneHint.classList.remove("fade"); }, 300);
+  }
+
   let down = null;
-  const notPicture = (t) => t.closest("#gate, #lockBtn, .nav");
+  const notPicture = (t) => t.closest("#gate, #lockBtn");
   els.show.addEventListener("pointerdown", (e) => {
     if (notPicture(e.target)) return;
     down = { x: e.clientX, y: e.clientY };
@@ -789,18 +805,11 @@
     const dx = e.clientX - down.x, dy = e.clientY - down.y;
     down = null;
     if (!tapPreamble()) return;
+    if (!els.zoneHint.hidden && !els.zoneHint.classList.contains("fade")) { hideZoneHint(); return; }
+    if (!els.navControls.checked) { userGo(1); return; }              // any tap = next
     const swipe = Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy);
-    if (swipe && els.navControls.checked) userGo(dx > 0 ? -1 : 1);   // swipe right = back, left = next
-    else userGo(1);                                                   // tap = next
-  });
-
-  [[els.prevBtn, -1], [els.nextBtn, 1]].forEach(([btn, dir]) => {
-    btn.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); });
-    btn.addEventListener("pointerup", (e) => {
-      e.stopPropagation();
-      if (tapPreamble()) userGo(dir);
-    });
-    btn.addEventListener("click", (e) => e.stopPropagation());
+    if (swipe) userGo(dx > 0 ? -1 : 1);                               // swipe right = back, left = next
+    else userGo(e.clientX < els.show.clientWidth * 0.25 ? -1 : 1);    // left quarter = back, rest = next
   });
 
   // Show the cursor briefly when the mouse moves (so a grown-up can find the lock).

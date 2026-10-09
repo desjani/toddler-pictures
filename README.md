@@ -40,14 +40,16 @@ You can also just open `index.html` in any browser, but you get fewer protection
 
 1. Tap a suggestion or type a topic and press **Go!**
 2. The slideshow starts and locks.
-   - **Tap the picture** to see the next one.
-   - **‹ › buttons** on the sides go back and forward, and so do swipes (right = back, left = next).
-     Use them when she asks to "go back" after a picture changes. You can turn them off in Settings.
+   - **Tap the left quarter** of the screen to go back. **Tap anywhere else** for the next picture.
+     Swiping works too (right = back, left = next). Use this when she asks to "go back" after a
+     picture changes. You can turn it off in Settings, and then every tap goes forward.
+   - When a slideshow starts, an overlay shows the Back and Next zones for half a second.
+     A tap dismisses it sooner.
    - Keyboard mashing just moves to the next picture.
    - It can also move on by itself (Settings → *Change picture automatically*).
    - The word shows as a small label in the top-left corner (can be turned off). There are no sounds.
    - **Wait between taps** (Settings) ignores taps for 1–10 seconds after a change, so she can't
-     race through pictures. The arrows fade while it's waiting. Automatic changes aren't affected.
+     race through pictures. Automatic changes aren't affected.
 3. **To exit:** **press and hold** the faint 🔒 in the top-right corner for about 1.5 seconds, then answer the
    addition question on the keypad. Quick taps on the lock are ignored. A wrong answer, or 12 seconds without input, sends it back to the pictures.
 4. To close the kiosk window completely: exit the slideshow first, then press **Alt+F4**.
