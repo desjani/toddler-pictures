@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and lets the app shell open offline.
 // The page itself is fetched network-first so updates show up right away.
-const CACHE = "picture-time-v1";
+const CACHE = "picture-time-v2";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./icons/favicon.png"];
 
 self.addEventListener("install", (e) => {
